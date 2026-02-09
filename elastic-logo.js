@@ -1,7 +1,7 @@
 const svg = document.querySelector("svg");
 const paths = [...svg.querySelectorAll("path")];
 
-const POINTS = 200;
+const POINTS = 100;
 const STIFFNESS = 0.02;
 const DAMPING = 0.5;
 const MAX_STRETCH = 20;
