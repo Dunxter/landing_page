@@ -18,7 +18,7 @@ const originalViewBox = {
 };
 
 const size = 1417.32;
-const zoom = 4;
+const zoom = 3;
 
 const newSize = size / zoom;
 const offset = (size - newSize) / 2;
