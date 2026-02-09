@@ -30,8 +30,6 @@ let allGroups = [];
 let isDragging = false;
 let grabStrength = 0;
 
-
-
 // --- helpers ---
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 
