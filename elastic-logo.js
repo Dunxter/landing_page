@@ -2,11 +2,11 @@ const svg = document.querySelector("svg");
 const paths = [...svg.querySelectorAll("path")];
 
 const POINTS = 100;
-const STIFFNESS = 0.02;
+const STIFFNESS = 0.04;
 const DAMPING = 0.5;
 const MAX_STRETCH = 20;
 const NEIGHBOR_FORCE = 0.18;
-const GRAB_RADIUS = 200;
+const GRAB_RADIUS = 100;
 const lerp = (a, b, t) => a + (b - a) * t;
 
 const vb = svg.viewBox.baseVal;
@@ -17,13 +17,20 @@ const originalViewBox = {
   h: vb.height
 };
 
+const size = 1417.32;
+const zoom = 4;
+
+const newSize = size / zoom;
+const offset = (size - newSize) / 2;
+
+svg.setAttribute ("viewBox", `${offset} ${offset} ${newSize} ${newSize}`)
+
 let dragging = null;
 let allGroups = [];
 let isDragging = false;
 let grabStrength = 0;
 
-svg.setAttribute("preserveAspectRatio", "none");
-svg.style.overflow = "visible";
+
 
 // --- helpers ---
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -44,6 +51,7 @@ paths.forEach(path => {
       oy: p.y,
       vx: 0,
       vy: 0,
+      grabbed: false,
       path
     });
   }
@@ -77,16 +85,26 @@ svg.addEventListener("pointerdown", e => {
 window.addEventListener("pointerup", () => {
   isDragging = false;
   dragging = null
+
+    allGroups.forEach(group => {
+    group.forEach(p => {
+      p.tx = p.ox;
+      p.ty = p.oy;
+    });
+  });
 });
 
 window.addEventListener("pointermove", e => {
   if (!dragging) return;
+
+
 
   const pt = svg.createSVGPoint();
   pt.x = e.clientX;
   pt.y = e.clientY;
   const m = pt.matrixTransform(svg.getScreenCTM().inverse());
 
+  
   allGroups.forEach(group => {
     group.forEach(p => {
       const d = Math.hypot(p.ox - dragging.ox, p.oy - dragging.oy);
@@ -145,10 +163,16 @@ function tick() {
       const dx = b.x - a.x;
       const dy = b.y - a.y;
 
-      a.x += dx * NEIGHBOR_FORCE * 0.5;
-      a.y += dy * NEIGHBOR_FORCE * 0.5;
-      b.x -= dx * NEIGHBOR_FORCE * 0.5;
-      b.y -= dy * NEIGHBOR_FORCE * 0.5;
+    const restDx = b.ox - a.ox;
+    const restDy = b.oy - a.oy;
+
+    const fx = (dx - restDx) * NEIGHBOR_FORCE;
+    const fy = (dy - restDy) * NEIGHBOR_FORCE;
+
+    a.vx += fx;
+    a.vy += fy;
+    b.vx -= fx;
+    b.vy -= fy;
     }
 
     // --- smooth CLOSED path ---
@@ -180,6 +204,7 @@ group[0].path.setAttribute("d", d);
 
    
   });
+  
 
   requestAnimationFrame(tick);
 }
