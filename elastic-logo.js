@@ -7,9 +7,23 @@ const DAMPING = 0.5;
 const MAX_STRETCH = 20;
 const NEIGHBOR_FORCE = 0.18;
 const GRAB_RADIUS = 200;
+const lerp = (a, b, t) => a + (b - a) * t;
+
+const vb = svg.viewBox.baseVal;
+const originalViewBox = {
+  x: vb.x,
+  y: vb.y,
+  w: vb.width,
+  h: vb.height
+};
 
 let dragging = null;
 let allGroups = [];
+let isDragging = false;
+let grabStrength = 0;
+
+svg.setAttribute("preserveAspectRatio", "none");
+svg.style.overflow = "visible";
 
 // --- helpers ---
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -24,6 +38,8 @@ paths.forEach(path => {
     group.push({
       x: p.x,
       y: p.y,
+      tx: p.x,
+      ty: p.y,
       ox: p.x,
       oy: p.y,
       vx: 0,
@@ -37,6 +53,8 @@ paths.forEach(path => {
 
 // --- pointer ---
 svg.addEventListener("pointerdown", e => {
+  grabStrength = 0;
+  isDragging = true;
   const pt = svg.createSVGPoint();
   pt.x = e.clientX;
   pt.y = e.clientY;
@@ -56,7 +74,10 @@ svg.addEventListener("pointerdown", e => {
   dragging = best;
 });
 
-window.addEventListener("pointerup", () => dragging = null);
+window.addEventListener("pointerup", () => {
+  isDragging = false;
+  dragging = null
+});
 
 window.addEventListener("pointermove", e => {
   if (!dragging) return;
@@ -79,8 +100,9 @@ window.addEventListener("pointermove", e => {
         const stretch = Math.hypot(dx, dy);
         const resistance = 1 / (1 + stretch / MAX_STRETCH);
 
-        p.x = p.ox + dx * w * resistance;
-        p.y = p.oy + dy * w * resistance;
+        p.tx = p.ox + dx * w * resistance;
+        p.ty = p.oy + dy * w * resistance;
+
       }
     });
   });
@@ -88,9 +110,20 @@ window.addEventListener("pointermove", e => {
 
 // --- animation ---
 function tick() {
+
+    if (isDragging) {
+    grabStrength = Math.min(1, grabStrength + 0.08);
+    } else {
+      grabStrength = 0;
+    }
+
   allGroups.forEach(group => {
     group.forEach(p => {
-      if (p !== dragging) {
+      if (isDragging) {
+        p.x = lerp(p.x, p.tx, grabStrength);
+        p.y = lerp(p.y, p.ty, grabStrength);
+      }
+      if (!isDragging) {
         const fx = (p.ox - p.x) * STIFFNESS;
         const fy = (p.oy - p.y) * STIFFNESS;
 
@@ -99,6 +132,8 @@ function tick() {
 
         p.x += p.vx;
         p.y += p.vy;
+
+        
       }
     });
 
