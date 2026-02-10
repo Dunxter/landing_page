@@ -4,19 +4,28 @@
 <meta charset="UTF-8" />
 <title>gerard san miguel</title>
 <style>
+  
+  html, body {
+  height: 100%;
+  margin: 0;
+  }
+  
+  
   body {
-    background: "white";
-    display: grid;
-    place-items: center;
-    margin: 0;
-    padding: 0;
+    background: rgb(var(--bg));
+    transition: background 0.1s linear;
+    display: flex;
+    align-items: center;   /* vertical center */
+    justify-content: center; /* horizontal center */
     overflow: hidden;
+    padding-top: 0px;
   }
 
   svg {
     cursor: grab;
     background: transparent;
-    margin-top: -25%;
+    height: auto;
+    touch-action: none;
   }
 
   svg:active {
