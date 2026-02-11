@@ -47,6 +47,8 @@ let fadeStartTime = null;
 let fadeT = 0; // 0 → normal, 1 → white
 let fadeActive = false;
 
+let collapseProgress = 0; // 0 → no collapse, 1 → full cone
+
 let limitScroll = 0.9;
 
 let allGroups = [];
@@ -338,12 +340,17 @@ function tick() {
     // END BEHAVIOUR PER FRAME
     const t = easeInOutCubic(fadeT);
 
-    //pull_multiplier += 0.001;
+    // collapse grows nonlinearly
+    collapseProgress = t * t; 
+
+    // amplify inward pull progressively
+    pull_multiplier = lerp(0, -1, collapseProgress);
     
   } else {
     fadeStartTime = null;
     fadeT = clamp01(fadeT - 0.02); // smooth reverse
     pull_multiplier = 1;
+    collapseProgress = 0;
   }
 
   if (fadeT >= 1 && !hasExitedSite) {
@@ -379,10 +386,17 @@ function tick() {
         const cone = pressure * pressure;
         let pull = cone * -coneIntensity * pull_multiplier;
 
+                // EXTRA collapse bias during fade
+        if (fadeActive) {
+          const inward = collapseProgress * 0.25; 
+          restX += dx * inward;
+          restY += dy * inward;
+        }
+
         if (pressure >= limitScroll) {
           disableStrengthVariation = true;
           fadeActive = true;
-          grabStrength = 2.02;
+          grabStrength = 2;
 
           //fade active
         } else {
