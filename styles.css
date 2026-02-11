@@ -1,6 +1,7 @@
 html {
   height: 100%;
   margin: 0;
+
 }
   
 body {
@@ -9,64 +10,153 @@ body {
   display: flex;
   align-items: center;   /* vertical center */
   justify-content: center; /* horizontal center */
-  overflow: hidden;
-  height: 95%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  height: auto;
   margin: 0;
+  padding: 0;
+  font-family: "Inter";
 }
 
-svg {
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  display: none;
+}
+
+html,
+body {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scroll-area {
+  height: 400vh;
+}
+
+.logo-container {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  height: 95%;
+}
+
+.logo-container svg {
   cursor: grab;
   background: transparent;
   height: auto;
-  touch-action: none;
+  touch-action: pan-y;
   max-height: 1500px;
-  position: absolute
+  pointer-events: auto
 }
 
-svg:active {
+.logo-container svg:active {
   cursor: grabbing;
 }
 
-svg.no-grab {
+.logo-container svg.no-grab {
   cursor: default !important;
 }
 
 #scroll-hint {
   position: fixed;
-  bottom: 80px;
+  bottom: 150px;
   left: 50%;
+  right: 50%;
   transform: translateX(-50%);
-  opacity: 0;
-  pointer-events: none;
   transition: opacity 0.6s ease;
-  font-size: 14px;
-  letter-spacing: 0.15em;
+  width: 4em;
+  height: 4em;
+}
+
+
+#scroll-hint span {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+
+  justify-content: center;
+  align-items: center;
+  transition: opacity 0.6s ease, color 0.3s ease;
 }
 
 .scroll-icon {
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 3em;
-  width: 1.6em;
+  height: 3em !important;
+  width: 1.6em !important;
   font-size: 22px;
   color: white;
   border-radius: 2em;
   border: solid 8px;
-  transition: .4s;
+  cursor: pointer;
+  opacity: 0;
 }
 
 .scroll-icon::after {
   content: '';
   width: 8px;
   height: 8px;
-  background-color: #fff;
+  background-color: currentColor;
   border-radius: 50%;
   animation: scroll-icon 2.2s infinite cubic-bezier(0.65, 0.05, 0.36, 1);
 }
+
+.scroll-arrow {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: white;
+  font-size: 2rem;
+  font-weight: bold;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  margin-top: 0.5em;
+  opacity: 0;
+}
+
+/* optional: smooth transition */
+.scroll-icon,
+.scroll-arrow {
+  transition: color 0.3s ease, opacity 0.6s ease;
+}
+
+.scroll-arrow:hover { color: #ffffff7e !important; } 
+.scroll-icon:hover { color: #ffffff7e !important; }
 
 @keyframes scroll-icon {
     0% { transform: translateY(-12px); opacity: 0; }
   30%, 70% { opacity: 1; }
   100% { transform: translateY(12px); opacity: 0; }
+}
+
+.progress-top, .progress-right, .progress-bottom, .progress-left {
+	 position: fixed;
+	 z-index: 999;
+	 background-color: #ffc769;
+}
+ .progress-top, .progress-bottom {
+	 height: 0.35em;
+}
+ .progress-right, .progress-left {
+	 width: 0.35em;
+}
+ .progress-top, .progress-right {
+	 top: 0;
+}
+ .progress-top, .progress-left {
+	 left: 0;
+}
+ .progress-bottom, .progress-left {
+	 bottom: 0;
+}
+ .progress-bottom, .progress-right {
+	 right: 0;
 }

@@ -8,7 +8,7 @@ const MAX_STRETCH = 20;
 const NEIGHBOR_FORCE = 0.18;
 const GRAB_RADIUS = 100;
 const coneIntensity = 0.7;
-const FADE_DURATION = 10000; // ms
+const FADE_DURATION = 4000; // ms
 
 const clamp01 = v => Math.max(0, Math.min(1, v));
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -40,43 +40,130 @@ let effectivePoints = POINTS;
 let disableStrengthVariation = false;
 let hasExitedSite = false;
 
+let fadeStartTime = null;
 let fadeT = 0; // 0 → normal, 1 → white
 let fadeActive = false;
 
 let allGroups = [];
 
+// --- scroll reset on pageshow (back/forward cache) --- 
+window.addEventListener("pageshow", e => {
+  if (e.persisted) {
+    window.scrollTo(0, 0);
+  }
+
+  pressure = 0;
+  fadeT = 0;
+  fadeActive = false;
+  hasExitedSite = false;
+});
+
 // --- scroll reset on load ---
 document.addEventListener("DOMContentLoaded", () => {
   window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  hasExitedSite = false;
 });
 
 // --- scroll hint ---
 const hint = document.getElementById("scroll-hint");
-let hintTimer = null;
-let hintVisible = false;
-let hintDisabledForever = false;
+const scrollIcon = hint.querySelector(".scroll-icon");
+const scrollArrow = hint.querySelector(".scroll-arrow");
 
+let hintTimer = null;
+let idleTimer = null;
+let hintVisible = false;
+let arrowVisible = false;
+let hintDisabledForever = false;
+const IDLE_DELAY = 7000; // 7 seconds
+
+scrollIcon.style.pointerEvents = "none";
+scrollArrow.style.pointerEvents = "none";
+
+function showHintIcon() {
+  if (hintDisabledForever) return;
+  hint.style.opacity = 1;
+  scrollIcon.style.opacity = 1;
+  scrollIcon.style.pointerEvents = "auto";
+  scrollArrow.style.opacity = 0;
+  scrollArrow.style.pointerEvents = "none";
+  hintVisible = true;
+  arrowVisible = false;
+}
+
+// Initial hint after 3s
 hintTimer = setTimeout(() => {
-  if (!hintDisabledForever) {
-    hint.style.opacity = 1;
-    hintVisible = true;
-  }
+  showHintIcon();
+  startIdleTimer();
 }, 3000);
 
-window.addEventListener("wheel", e => {
-  pressure += e.deltaY * 0.00045;
-  pressure = clamp01(pressure);
+function startIdleTimer() {
+  if (hintDisabledForever) return;
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => {
+    // fade icon out, show arrow
+    scrollIcon.style.transition = "opacity 0.6s ease";
+    scrollArrow.style.transition = "opacity 0.6s ease";
+    scrollIcon.style.opacity = 0;
+    scrollArrow.style.opacity = 1;
+    scrollIcon.style.pointerEvents = "none";
+    scrollArrow.style.pointerEvents = "auto";
+    arrowVisible = true;
+  }, IDLE_DELAY);
+}
 
-  if (!hintDisabledForever) {
+function resetIdleTimer() {
+  if (hintDisabledForever) return;
+
+  // Only reset if arrow is not visible
+  if (!arrowVisible) {
+    clearTimeout(idleTimer);
+    startIdleTimer();
+  }
+}
+
+function updatePressureFromScroll() {
+  const scrollMax =
+    document.documentElement.scrollHeight - window.innerHeight;
+
+  if (scrollMax <= 0) return;
+
+  const scrollY = window.scrollY;
+
+  pressure = clamp01(scrollY / scrollMax);
+
+  if (!hintDisabledForever && scrollY > 5) {
     hintDisabledForever = true;
     clearTimeout(hintTimer);
-
-    if (hintVisible) {
-      hint.style.opacity = 0;
-      hintVisible = false;
-    }
+    clearTimeout(idleTimer);
+    hint.style.opacity = 0;
+    scrollIcon.style.opacity = 0;
+    scrollArrow.style.opacity = 0;
   }
+
+}
+
+window.addEventListener("scroll", () => {
+  updatePressureFromScroll();
+  resetIdleTimer();
 }, { passive: true });
+
+// Scroll to bottom on click
+[scrollIcon, scrollArrow].forEach(el => {
+  el.addEventListener("click", e => {
+    e.preventDefault();
+    window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+
+    hintDisabledForever = true;
+    hint.style.opacity = 0;
+    scrollIcon.style.opacity = 0;
+    scrollArrow.style.opacity = 0;
+    scrollIcon.style.pointerEvents = "none";
+    scrollArrow.style.pointerEvents = "none";
+    clearTimeout(hintTimer);
+    clearTimeout(idleTimer);
+  });
+});
+
 
 // --- sample paths ---
 paths.forEach(path => {
@@ -103,12 +190,30 @@ paths.forEach(path => {
 });
 
 // --- pointer events ---
-svg.addEventListener("pointerdown", e => {
-  if (fadeActive) return; // disable interaction during fade
 
-  svg.setPointerCapture(e.pointerId);
-  grabStrength = 0;
-  isDragging = true;
+window.addEventListener("pointercancel", resetInteraction);
+
+function resetInteraction(e) {
+  try {
+    if (e && e.pointerId) {
+      svg.releasePointerCapture(e.pointerId);
+    }
+  } catch {}
+
+  isDragging = false;
+  dragging = null;
+
+  allGroups.forEach(group => {
+    group.forEach(p => {
+      p.tx = p.ox;
+      p.ty = p.oy;
+    });
+  });
+}
+
+
+svg.addEventListener("pointerdown", e => {
+  if (fadeActive) return;
 
   const pt = svg.createSVGPoint();
   pt.x = e.clientX;
@@ -126,22 +231,16 @@ svg.addEventListener("pointerdown", e => {
     }
   });
 
-  dragging = best;
+  // Only start dragging if close enough
+  if (dmin < GRAB_RADIUS) {
+    svg.setPointerCapture(e.pointerId);
+    isDragging = true;
+    grabStrength = 0;
+    dragging = best;
+  }
 });
 
-window.addEventListener("pointerup", e => {
-  try { svg.releasePointerCapture(e.pointerId); } catch {}
-
-  isDragging = false;
-  dragging = null;
-
-  allGroups.forEach(group => {
-    group.forEach(p => {
-      p.tx = p.ox;
-      p.ty = p.oy;
-    });
-  });
-});
+window.addEventListener("pointerup", resetInteraction);
 
 window.addEventListener("pointermove", e => {
   if (!dragging) return;
@@ -201,14 +300,17 @@ function updateLogoColor() {
 // --- animation loop ---
 function tick() {
   // fade logic
+  const now = performance.now();
+
   if (fadeActive) {
-    fadeT += 1 / (FADE_DURATION / 16.666); // frame-based, ~60fps
-    svg.classList.add("no-grab");           // disable cursor
+    if (!fadeStartTime) fadeStartTime = now;
+
+    const elapsed = now - fadeStartTime;
+    fadeT = clamp01(elapsed / FADE_DURATION);
   } else {
-    fadeT -= 1 / (FADE_DURATION / 16.666);
-    svg.classList.remove("no-grab");        // restore cursor
+    fadeStartTime = null;
+    fadeT = clamp01(fadeT - 0.02); // smooth reverse
   }
-  fadeT = clamp01(fadeT);
 
   if (fadeT >= 1 && pressure >= 1 && !hasExitedSite) {
     window.location.href = "https://gerardsanmiguel.com/";
