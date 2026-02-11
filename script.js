@@ -44,26 +44,15 @@ let fadeStartTime = null;
 let fadeT = 0; // 0 → normal, 1 → white
 let fadeActive = false;
 
+let limitScroll = 0.9;
+
 let allGroups = [];
 
-// --- scroll reset on pageshow (back/forward cache) --- 
-window.addEventListener("pageshow", e => {
-  if (e.persisted) {
-    window.scrollTo(0, 0);
-  }
-
-  pressure = 0;
-  fadeT = 0;
-  fadeActive = false;
-  hasExitedSite = false;
-});
-
-// --- scroll reset on load ---
-document.addEventListener("DOMContentLoaded", () => {
-  window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-  hasExitedSite = false;
-});
-
+window.onbeforeunload = function () {
+  document.querySelector('html').style.scrollBehavior = '';
+  window.scrollTo(0, 0);
+  return;
+}
 // --- scroll hint ---
 const hint = document.getElementById("scroll-hint");
 const scrollIcon = hint.querySelector(".scroll-icon");
@@ -73,14 +62,12 @@ let hintTimer = null;
 let idleTimer = null;
 let hintVisible = false;
 let arrowVisible = false;
-let hintDisabledForever = false;
-const IDLE_DELAY = 7000; // 7 seconds
+const IDLE_DELAY = 6000; // 7 seconds
 
 scrollIcon.style.pointerEvents = "none";
 scrollArrow.style.pointerEvents = "none";
 
 function showHintIcon() {
-  if (hintDisabledForever) return;
   hint.style.opacity = 1;
   scrollIcon.style.opacity = 1;
   scrollIcon.style.pointerEvents = "auto";
@@ -90,35 +77,39 @@ function showHintIcon() {
   arrowVisible = false;
 }
 
+function showArrowText() {
+  scrollIcon.style.opacity = 0;
+  scrollIcon.style.pointerEvents = "none";
+  scrollArrow.style.opacity = 1;
+  scrollArrow.style.pointerEvents = "auto";
+  arrowVisible = true;
+  hintVisible = false;
+}
+
 // Initial hint after 3s
 hintTimer = setTimeout(() => {
   showHintIcon();
   startIdleTimer();
 }, 3000);
 
+// Start idle timer
 function startIdleTimer() {
-  if (hintDisabledForever) return;
   clearTimeout(idleTimer);
   idleTimer = setTimeout(() => {
-    // fade icon out, show arrow
-    scrollIcon.style.transition = "opacity 0.6s ease";
-    scrollArrow.style.transition = "opacity 0.6s ease";
-    scrollIcon.style.opacity = 0;
-    scrollArrow.style.opacity = 1;
-    scrollIcon.style.pointerEvents = "none";
-    scrollArrow.style.pointerEvents = "auto";
-    arrowVisible = true;
+    showArrowText();
   }, IDLE_DELAY);
 }
 
-function resetIdleTimer() {
-  if (hintDisabledForever) return;
 
-  // Only reset if arrow is not visible
-  if (!arrowVisible) {
-    clearTimeout(idleTimer);
-    startIdleTimer();
+function resetIdleTimer() {
+  clearTimeout(idleTimer);
+
+  // If user is at top and hint hidden, show icon again
+  if (window.scrollY < 5) {
+    showHintIcon();
   }
+
+  startIdleTimer();
 }
 
 function updatePressureFromScroll() {
@@ -131,20 +122,21 @@ function updatePressureFromScroll() {
 
   pressure = clamp01(scrollY / scrollMax);
 
-  if (!hintDisabledForever && scrollY > 5) {
-    hintDisabledForever = true;
-    clearTimeout(hintTimer);
-    clearTimeout(idleTimer);
-    hint.style.opacity = 0;
-    scrollIcon.style.opacity = 0;
-    scrollArrow.style.opacity = 0;
-  }
 
 }
 
 window.addEventListener("scroll", () => {
   updatePressureFromScroll();
+  if (hintVisible || arrowVisible) {
+    scrollIcon.style.opacity = 0;
+    scrollIcon.style.pointerEvents = "none";
+    scrollArrow.style.opacity = 0;
+    scrollArrow.style.pointerEvents = "none";
+    hintVisible = false;
+    arrowVisible = false;
+  }
   resetIdleTimer();
+
 }, { passive: true });
 
 // Scroll to bottom on click
@@ -153,14 +145,10 @@ window.addEventListener("scroll", () => {
     e.preventDefault();
     window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
 
-    hintDisabledForever = true;
-    hint.style.opacity = 0;
     scrollIcon.style.opacity = 0;
     scrollArrow.style.opacity = 0;
     scrollIcon.style.pointerEvents = "none";
     scrollArrow.style.pointerEvents = "none";
-    clearTimeout(hintTimer);
-    clearTimeout(idleTimer);
   });
 });
 
@@ -270,7 +258,7 @@ window.addEventListener("pointermove", e => {
 
 // --- update visuals ---
 function updateBackground() {
-  const t = clamp01(pressure / 0.5);
+  const t = clamp01(pressure / (limitScroll/2));
   const r = mix(139, 255, t);
   const g = mix(154, 255, t);
   const b = mix(191, 255, t);
@@ -279,7 +267,7 @@ function updateBackground() {
 }
 
 function updateLogoColor() {
-  const tScroll = clamp01((pressure - 0.5) / 0.5);
+  const tScroll = clamp01((pressure - (limitScroll/2)) / (limitScroll/2));
 
   const baseR = mix(255, 139, tScroll);
   const baseG = mix(255, 154, tScroll);
@@ -312,7 +300,7 @@ function tick() {
     fadeT = clamp01(fadeT - 0.02); // smooth reverse
   }
 
-  if (fadeT >= 1 && pressure >= 1 && !hasExitedSite) {
+  if (fadeT >= limitScroll && pressure >= limitScroll && !hasExitedSite) {
     window.location.href = "https://gerardsanmiguel.com/";
     hasExitedSite = true;
   }
@@ -345,7 +333,7 @@ function tick() {
         const cone = pressure * pressure;
         let pull = cone * -coneIntensity;
 
-        if (pressure >= 1) {
+        if (pressure >= limitScroll) {
           disableStrengthVariation = true;
           grabStrength = 2.01;
           fadeActive = true;
