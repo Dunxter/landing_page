@@ -9,7 +9,7 @@ const NEIGHBOR_FORCE = 0.18;
 const GRAB_RADIUS = 100;
 const clamp01 = v => Math.max(0, Math.min(1, v));
 const lerp = (a, b, t) => a + (b - a) * t;
-const coneIntensity = -1;
+const coneIntensity = 0.7;
 
 const vb = svg.viewBox.baseVal;
 const originalViewBox = {
@@ -41,18 +41,53 @@ let pressure = 0; // 0 → normal, 1 → collapse
 let breath = 0;
 let breathPhase = 0;
 let effectivePoints = POINTS;
+let disableStrengthVariation = false;
+let hasExitedSite = false;
+
+let fadeT = 0;               // 0 → normal, 1 → white
+let fadeActive = false;
+const FADE_DURATION = 7000; // ms
+
+
+const hint = document.getElementById("scroll-hint");
+
+let hintTimer = null;
+let hintVisible = false;
+let hintDisabledForever = false;
+
+// start timer on load
+hintTimer = setTimeout(() => {
+  if (!hintDisabledForever) {
+    hint.style.opacity = 1;
+    hintVisible = true;
+  }
+}, 3000);
+
 
 window.addEventListener("wheel", e => {
-  pressure += e.deltaY * 0.0004;
-  pressure = Math.max(0, Math.min(1, pressure));
+  pressure += e.deltaY * 0.00045;
+  pressure = clamp01(pressure);
 
-  if (pressure >= 1) {
-    window.location.href = "/next-page.html";
+  // --- handle hint ---
+  if (!hintDisabledForever) {
+    hintDisabledForever = true;
+    clearTimeout(hintTimer);
+
+    if (hintVisible) {
+      hint.style.opacity = 0;
+      hintVisible = false;
+    }
   }
+
 }, { passive: true });
 
 // --- helpers ---
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+
+const easeInOutCubic = t =>
+  t < 0.5
+    ? 4 * t * t * t
+    : 1 - Math.pow(-2 * t + 2, 3) / 2;
 
 // --- sample paths ---
 paths.forEach(path => {
@@ -80,6 +115,8 @@ paths.forEach(path => {
 
 // --- pointer ---
 svg.addEventListener("pointerdown", e => {
+  if (fadeActive) return; // 👈 disable interaction during fade
+  
   svg.setPointerCapture(e.pointerId);
   grabStrength = 0;
   isDragging = true;
@@ -151,7 +188,7 @@ return Math.round(a + (b - a) * t);
 }
 
 function updateBackground() {
-  const t = clamp01(pressure / 0.4); // only first half
+  const t = clamp01(pressure / 0.5); // only first half
 
   const r = Math.round(mix(139, 255, t));
   const g = Math.round(mix(154, 255, t));
@@ -161,12 +198,19 @@ function updateBackground() {
 }
 
 function updateLogoColor() {
-  const t = clamp01((pressure - 0.4) / 0.4); // 0.5 → 0.9
+  // --- stage 1: scroll-based color (white → bluish)
+  const tScroll = clamp01((pressure - 0.5) / 0.5);
 
+  const baseR = mix(255, 139, tScroll);
+  const baseG = mix(255, 154, tScroll);
+  const baseB = mix(255, 191, tScroll);
 
-  const r = Math.round(mix(255, 139, t));
-  const g = Math.round(mix(255, 154, t));
-  const b = Math.round(mix(255, 191, t));
+  // --- stage 2: eased fade to white
+  const easedFade = easeInOutCubic(fadeT);
+
+  const r = mix(baseR, 255, easedFade);
+  const g = mix(baseG, 255, easedFade);
+  const b = mix(baseB, 255, easedFade);
 
   const fill = `rgb(${r},${g},${b})`;
 
@@ -175,10 +219,26 @@ function updateLogoColor() {
 }
 
 
+
+
 // --- animation ---
 function tick() {
 
-  updateBackground();
+  // --- fade logic ---
+if (fadeActive) {
+  fadeT += 1 / (FADE_DURATION / 16.666); // frame-based, ~60fps
+} else {
+  fadeT -= 1 / (FADE_DURATION / 16.666);
+}
+
+fadeT = clamp01(fadeT);
+
+if (fadeT >= 1 && pressure >= 1 && !hasExitedSite) {
+  window.location.href = "https://gerardsanmiguel.com/";
+  hasExitedSite = true;
+}
+
+updateBackground();
 updateLogoColor();
   
   breathPhase += 0.01;
@@ -188,28 +248,29 @@ updateLogoColor();
   const effectiveStiffness =
     STIFFNESS * lerp(1.0, 2.5, energy);
 
-const effectiveNeighbor =
+  const effectiveNeighbor =
   NEIGHBOR_FORCE * lerp(1.0, 0.25, energy);
 
-  if (isDragging) {
-  grabStrength = Math.min(1, grabStrength + 0.08);
-  } else {
-    grabStrength = 0;
+
+  if (!disableStrengthVariation) {
+    if (isDragging) {
+      grabStrength = Math.min(1, grabStrength + 0.08);
+      } else {
+        grabStrength = 0;
+      }
   }
+
+  
 
 
   allGroups.forEach(group => {
     group.forEach(p => {
 
+      p.x = lerp(p.x, p.tx, grabStrength);
+      p.y = lerp(p.y, p.ty, grabStrength);
 
-      if (isDragging) {
-        p.x = lerp(p.x, p.tx, grabStrength);
-        p.y = lerp(p.y, p.ty, grabStrength);
-      }
       if (!isDragging) {
         
-        p.x = lerp(p.x, p.tx, grabStrength);
-        p.y = lerp(p.y, p.ty, grabStrength);
 
 
         let restX = p.ox;
@@ -224,19 +285,25 @@ const effectiveNeighbor =
         // cone amount (non-linear so it feels organic)
         const cone = pressure * pressure;
 
+        let pull = cone * -coneIntensity;
 
-        const pull = cone * coneIntensity; // 👈 THIS is the missing intensity
+        if (pressure >= 1) {
+          disableStrengthVariation = true;
+          grabStrength = 2.01;
+
+          fadeActive = true;
+      } else {
+          disableStrengthVariation = false;
+          fadeActive = false;
+      }
 
         restX += dx * pull;
         restY += dy * pull;
 
-
-
-        if (!isDragging) {
-          const amp = 3.5; // keep small
-          restX += Math.sin(breathPhase + p.ox * 0.01) * amp;
-          restY += Math.cos(breathPhase + p.oy * 0.01) * amp;
-        }
+  
+        const amp = 3.5; // keep small
+        restX += Math.sin(breathPhase + p.ox * 0.01) * amp;
+        restY += Math.cos(breathPhase + p.oy * 0.01) * amp;
 
         
 
