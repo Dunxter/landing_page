@@ -55,11 +55,23 @@ let allGroups = [];
 
 let isPenActive = false;
 
-window.onbeforeunload = function () {
-  document.querySelector('html').style.scrollBehavior = '';
-  window.scrollTo(0, 0);
-  return;
-}
+// --- scroll reset on pageshow (back/forward cache) --- 
+window.addEventListener("pageshow", e => {
+  if (e.persisted) {
+    window.scrollTo(0, 0);
+  }
+
+  pressure = 0;
+  fadeT = 0;
+  fadeActive = false;
+  hasExitedSite = false;
+});
+
+// --- scroll reset on load ---
+document.addEventListener("DOMContentLoaded", () => {
+  window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  hasExitedSite = false;
+});
 
 
 const progressTop = document.querySelector(".progress-top");
@@ -344,7 +356,7 @@ function tick() {
     collapseProgress = t * t; 
 
     // amplify inward pull progressively
-    pull_multiplier = lerp(0, -1, collapseProgress);
+    pull_multiplier = lerp(0, 1, collapseProgress);
     
   } else {
     fadeStartTime = null;
