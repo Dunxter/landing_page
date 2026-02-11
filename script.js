@@ -8,7 +8,7 @@ const MAX_STRETCH = 20;
 const NEIGHBOR_FORCE = 0.18;
 const GRAB_RADIUS = 100;
 const coneIntensity = 0.7;
-const FADE_DURATION = 3000; // ms
+const FADE_DURATION = 3500; // ms
 
 const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 
@@ -356,7 +356,7 @@ function tick() {
     collapseProgress = t * t; 
 
     // amplify inward pull progressively
-    pull_multiplier = lerp(0, 1, collapseProgress);
+    pull_multiplier = lerp(0, -1, collapseProgress);
     
   } else {
     fadeStartTime = null;
