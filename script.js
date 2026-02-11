@@ -8,7 +8,7 @@ const MAX_STRETCH = 20;
 const NEIGHBOR_FORCE = 0.18;
 const GRAB_RADIUS = 100;
 const coneIntensity = 0.7;
-const FADE_DURATION = 7000; // ms
+const FADE_DURATION = 10000; // ms
 
 const clamp01 = v => Math.max(0, Math.min(1, v));
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -44,6 +44,11 @@ let fadeT = 0; // 0 → normal, 1 → white
 let fadeActive = false;
 
 let allGroups = [];
+
+// --- scroll reset on load ---
+document.addEventListener("DOMContentLoaded", () => {
+  window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+});
 
 // --- scroll hint ---
 const hint = document.getElementById("scroll-hint");
