@@ -62,7 +62,7 @@ body {
 
 #scroll-hint {
   position: fixed;
-  bottom: 150px;
+  bottom: 15%;
   left: 50%;
   right: 50%;
   transform: translateX(-50%);
@@ -76,6 +76,7 @@ body {
   position: absolute;
   top: 0;
   left: 0;
+  right: 0;
   width: 100%;
   height: 100%;
   display: flex;
@@ -113,13 +114,14 @@ body {
   justify-content: center;
   align-items: center;
   color: white;
-  font-size: 2rem;
+  font-size: 3rem;
   font-weight: bold;
   text-decoration: none;
   white-space: nowrap;
   cursor: pointer;
   margin-top: 0.5em;
   opacity: 0;
+  animation: scroll-text-breath 2s infinite ease-in-out;
 }
 
 /* optional: smooth transition */
@@ -128,35 +130,31 @@ body {
   transition: color 0.3s ease, opacity 0.6s ease;
 }
 
-.scroll-arrow:hover { color: #ffffff7e !important; } 
-.scroll-icon:hover { color: #ffffff7e !important; }
+.scroll-arrow:hover { color: #bdc5da !important; } 
+.scroll-icon:hover { color: #bdc5da !important; }
 
+
+/* Touch upward bounce */
 @keyframes scroll-icon {
-    0% { transform: translateY(-12px); opacity: 0; }
+  0% { transform: translateY(var(--initialTranslate, -12px)); opacity: 0; }
   30%, 70% { opacity: 1; }
-  100% { transform: translateY(12px); opacity: 0; }
+  100% { transform: translateY(var(--finalTranslate, 12px)); opacity: 0; }
 }
 
-.progress-top, .progress-right, .progress-bottom, .progress-left {
-	 position: fixed;
-	 z-index: 999;
-	 background-color: #ffc769;
+
+/* Breath animation for the text */
+@keyframes scroll-text-breath {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }  /* small up and down */
 }
- .progress-top, .progress-bottom {
-	 height: 0.35em;
-}
- .progress-right, .progress-left {
-	 width: 0.35em;
-}
- .progress-top, .progress-right {
-	 top: 0;
-}
- .progress-top, .progress-left {
-	 left: 0;
-}
- .progress-bottom, .progress-left {
-	 bottom: 0;
-}
- .progress-bottom, .progress-right {
-	 right: 0;
+
+.progress-top {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 0.7em;
+  background-color: #8b9abf;
+  width: 0%; /* start empty */
+  transition: width 0.1s ease-out; /* smooth lerp */
+  z-index: 999;
 }

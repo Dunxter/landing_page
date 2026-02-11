@@ -8,7 +8,9 @@ const MAX_STRETCH = 20;
 const NEIGHBOR_FORCE = 0.18;
 const GRAB_RADIUS = 100;
 const coneIntensity = 0.7;
-const FADE_DURATION = 4000; // ms
+const FADE_DURATION = 3000; // ms
+
+const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 
 const clamp01 = v => Math.max(0, Math.min(1, v));
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -39,6 +41,7 @@ let breathPhase = 0;
 let effectivePoints = POINTS;
 let disableStrengthVariation = false;
 let hasExitedSite = false;
+let pull_multiplier = 1;
 
 let fadeStartTime = null;
 let fadeT = 0; // 0 → normal, 1 → white
@@ -48,15 +51,37 @@ let limitScroll = 0.9;
 
 let allGroups = [];
 
+let isPenActive = false;
+
 window.onbeforeunload = function () {
   document.querySelector('html').style.scrollBehavior = '';
   window.scrollTo(0, 0);
   return;
 }
+
+
+const progressTop = document.querySelector(".progress-top");
+
+
 // --- scroll hint ---
 const hint = document.getElementById("scroll-hint");
 const scrollIcon = hint.querySelector(".scroll-icon");
 const scrollArrow = hint.querySelector(".scroll-arrow");
+
+function updateScrollHintForDevice() {
+  if (isTouchDevice || isPenActive) {
+    // Touch device: show swipe text and invert icon animation
+    scrollIcon.style.setProperty('--initialTranslate', '12px');
+    scrollIcon.style.setProperty('--finalTranslate', '-12px');
+    scrollArrow.textContent = '↑  swipe  ↑';  // upper arrow
+  } else {
+    // PC: default down arrow and animation
+    scrollArrow.textContent = '↓  scroll  ↓';
+  }
+}
+
+// Call this once on load
+updateScrollHintForDevice();
 
 let hintTimer = null;
 let idleTimer = null;
@@ -86,11 +111,18 @@ function showArrowText() {
   hintVisible = false;
 }
 
-// Initial hint after 3s
-hintTimer = setTimeout(() => {
-  showHintIcon();
-  startIdleTimer();
-}, 3000);
+function startIconTimer() {
+  // Initial hint after 3s
+  hintTimer = setTimeout(() => {
+    
+    if (fadeActive) {resetIdleTimer(); return;}
+    
+    showHintIcon();
+    startIdleTimer();
+  }, 3000);
+}
+
+startIconTimer()
 
 // Start idle timer
 function startIdleTimer() {
@@ -103,18 +135,11 @@ function startIdleTimer() {
 
 function resetIdleTimer() {
   clearTimeout(idleTimer);
-
-  // If user is at top and hint hidden, show icon again
-  if (window.scrollY < 5) {
-    showHintIcon();
-  }
-
-  startIdleTimer();
+  startIconTimer();
 }
 
 function updatePressureFromScroll() {
-  const scrollMax =
-    document.documentElement.scrollHeight - window.innerHeight;
+  const scrollMax = document.documentElement.scrollHeight - window.innerHeight;
 
   if (scrollMax <= 0) return;
 
@@ -122,20 +147,22 @@ function updatePressureFromScroll() {
 
   pressure = clamp01(scrollY / scrollMax);
 
+  // Only hide hint when user hits the bottom
+  if ((hintVisible || arrowVisible) && pressure >= limitScroll) {
+    scrollIcon.style.opacity = 0;
+    scrollArrow.style.opacity = 0;
+    scrollIcon.style.pointerEvents = "none";
+    scrollArrow.style.pointerEvents = "none";
+    hintVisible = false;
+    arrowVisible = false;
+    resetIdleTimer();
+  }
+
 
 }
 
 window.addEventListener("scroll", () => {
   updatePressureFromScroll();
-  if (hintVisible || arrowVisible) {
-    scrollIcon.style.opacity = 0;
-    scrollIcon.style.pointerEvents = "none";
-    scrollArrow.style.opacity = 0;
-    scrollArrow.style.pointerEvents = "none";
-    hintVisible = false;
-    arrowVisible = false;
-  }
-  resetIdleTimer();
 
 }, { passive: true });
 
@@ -201,6 +228,10 @@ function resetInteraction(e) {
 
 
 svg.addEventListener("pointerdown", e => {
+  if (e.pointerType == "pen") {
+    isPenActive = true;
+    updateScrollHintForDevice();
+  }
   if (fadeActive) return;
 
   const pt = svg.createSVGPoint();
@@ -283,7 +314,12 @@ function updateLogoColor() {
 
   document.querySelectorAll("#outer, #shape2")
     .forEach(p => p.setAttribute("fill", fill));
+
+  scrollIcon.style.color = fill;
+  scrollArrow.style.color = fill;
 }
+
+
 
 // --- animation loop ---
 function tick() {
@@ -295,12 +331,22 @@ function tick() {
 
     const elapsed = now - fadeStartTime;
     fadeT = clamp01(elapsed / FADE_DURATION);
+    const barProgress = Math.min(elapsed / FADE_DURATION, 1);
+
+    progressTop.style.width = `${barProgress * 100}%`;
+
+    // END BEHAVIOUR PER FRAME
+    const t = easeInOutCubic(fadeT);
+
+    //pull_multiplier += 0.001;
+    
   } else {
     fadeStartTime = null;
     fadeT = clamp01(fadeT - 0.02); // smooth reverse
+    pull_multiplier = 1;
   }
 
-  if (fadeT >= limitScroll && pressure >= limitScroll && !hasExitedSite) {
+  if (fadeT >= 1 && !hasExitedSite) {
     window.location.href = "https://gerardsanmiguel.com/";
     hasExitedSite = true;
   }
@@ -331,15 +377,18 @@ function tick() {
         const dist = Math.hypot(dx, dy) + 0.0001;
 
         const cone = pressure * pressure;
-        let pull = cone * -coneIntensity;
+        let pull = cone * -coneIntensity * pull_multiplier;
 
         if (pressure >= limitScroll) {
           disableStrengthVariation = true;
-          grabStrength = 2.01;
           fadeActive = true;
+          grabStrength = 2.02;
+
+          //fade active
         } else {
           disableStrengthVariation = false;
           fadeActive = false;
+          progressTop.style.width = "0%";
         }
 
         restX += dx * pull + Math.sin(breathPhase + p.ox * 0.01) * 3.5;
@@ -398,6 +447,8 @@ function tick() {
 
     d += " Z";
     group[0].path.setAttribute("d", d);
+
+    
   });
 
   requestAnimationFrame(tick);
